@@ -1,0 +1,60 @@
+{
+    "baidu": {
+        "users": {},
+        "current_user": null,
+        "tasks": []
+    },
+    "quark": {
+        "users": {},
+        "current_user": null
+    },
+    "retry": {
+        "max_attempts": 3,
+        "delay_seconds": 5
+    },
+    "cron": {
+        "default_schedule": [
+            "0 10 * * *"
+        ],
+        "auto_install": true
+    },
+    "notify": {
+        "enabled": false,
+        "notification_delay": 30,
+        "direct_fields": {
+            "PUSH_PLUS_TOKEN": "",
+            "PUSH_PLUS_USER": ""
+        }
+    },
+    "scheduler": {
+        "max_workers": 1,
+        "misfire_grace_time": 3600,
+        "coalesce": true,
+        "max_instances": 1
+    },
+    "quota_alert": {
+        "enabled": true,
+        "threshold_percent": 90,
+        "check_schedule": "0 0 * * *"
+    },
+    "share": {
+        "default_password": "1234",
+        "default_period_days": 7
+    },
+    "regex": {
+        "enabled": false,
+        "pattern": ".*\\.mp4$",
+        "replace": "",
+        "description": "只转存mp4文件"
+    },
+    "file_operations": {
+        "rename_delay_seconds": 0.5,
+        "batch_size": 50,
+        "concurrent_limit": 1
+    },
+    "auth": {
+        "users": "admin",
+        "password": "admin123",
+        "session_timeout": 3600
+    }
+} 
