@@ -7,7 +7,7 @@
 | 网盘 | 标识 | 说明 |
 |------|------|------|
 | 百度网盘 | `baidu` | 基于 baidupcs-py，功能最完整 |
-| 夸克网盘 | `quark` | 支持分享转存 |
+| 夸克网盘 | `quark` | 支持分享转存、每日签到领取空间 |
 | UC 网盘 | `uc` | 与夸克共用适配层 |
 | 阿里云盘 | `aliyun` | 支持 Cookie 登录与转存 |
 | 迅雷云盘 | `xunlei` | 支持分享转存 |
@@ -23,6 +23,7 @@
 - **状态监控**：通过 SSE 实时显示任务执行状态与日志
 - **智能去重**：自动跳过已转存的文件
 - **容量监控**：监控网盘容量，超阈值时发送通知
+- **夸克签到**：支持多账号独立配置、手动签到与每日自动领取空间
 - **链接复制**：一键复制分享链接到剪贴板
 - **智能填充**：自动获取分享文件夹名称并填充任务名
 - **正则处理**：支持文件过滤与重命名的正则表达式
@@ -238,6 +239,15 @@ Cron 示例：
 3. 设置检查时间（默认每天 00:00）
 4. 使用量超过阈值时，通过已配置的通知渠道发送警告
 
+### 6. 夸克每日签到
+
+1. 使用夸克手机客户端进入签到页，抓取任意 `drive-m.quark.cn` 请求中的 `kps`、`sign`、`vcode`
+2. 在「用户管理」编辑对应夸克账号，填写三个参数并开启该账号的自动签到
+3. 可在账号菜单中点击「立即签到」验证凭据
+4. 在「系统设置」开启夸克自动签到并配置 Cron，默认每天北京时间 08:00
+
+签到会先查询当天状态，已经签到时不会重复领取。三个参数属于敏感凭据，请勿写入日志、截图或提交到仓库。
+
 ## 配置文件说明
 
 `config/config.json` 主要结构示例：
@@ -252,6 +262,11 @@ Cron 示例：
     "quark": {
         "users": {},
         "current_user": null
+    },
+    "quark_signin": {
+        "enabled": false,
+        "schedule": "0 8 * * *",
+        "notify": true
     },
     "aliyun": {
         "users": {},
@@ -365,5 +380,5 @@ npm run build:prod
 - [Flask](https://flask.palletsprojects.com/)
 - [APScheduler](https://apscheduler.readthedocs.io/)
 - [baidupcs-py](https://github.com/PeterDing/BaiduPCS-Py)
-- [quark-auto-save](https://github.com/Cp0204/quark-auto-save) — 夸克网盘自动转存，提供了很好的参考
+- [quark-auto-save](https://github.com/Cp0204/quark-auto-save) — 夸克签到接口与实现参考（AGPL-3.0）
 - [Vue.js](https://vuejs.org/) / [Element Plus](https://element-plus.org/) / [Vite](https://vitejs.dev/)

@@ -4,7 +4,8 @@ import type {
   Task, User, Config,
   CreateTaskRequest, UpdateTaskRequest,
   CreateUserRequest, UpdateUserRequest,
-  ApiResponse, NetdiskProvider
+  ApiResponse, NetdiskProvider,
+  QuarkSigninConfigRequest, QuarkSigninResult
 } from '@/types'
 
 export class ApiService {
@@ -78,6 +79,14 @@ export class ApiService {
 
   async getUserCookies(username: string, provider?: NetdiskProvider): Promise<ApiResponse<{ cookies: string }>> {
     return httpClient.get(`/api/user/${username}/cookies`, { provider })
+  }
+
+  async updateQuarkSigninConfig(data: QuarkSigninConfigRequest): Promise<ApiResponse<any>> {
+    return httpClient.post('/api/quark/signin/config', data)
+  }
+
+  async runQuarkSignin(username: string): Promise<ApiResponse<{ result: QuarkSigninResult }>> {
+    return httpClient.post('/api/quark/signin/run', { username })
   }
 
   // 配置相关API

@@ -1,28 +1,28 @@
 <template>
   <header class="app-header">
     <div class="header-content">
-      <!-- 左侧：Logo和标�? -->
+      <!-- Left: logo and title -->
       <div class="header-left">
         <div class="logo-area">
           <img src="/favicon/favicon.svg" alt="Logo" class="app-logo" />
           <h1 class="app-title">&#32593;&#30424;&#33258;&#21160;&#36716;&#23384;</h1>
         </div>
         
-        <!-- 移动端菜单按钮已移除，使用底部导航代�? -->
+        <!-- Mobile uses bottom navigation -->
       </div>
       
-      <!-- 右侧：用户信息和操作 -->
+      <!-- Right: user information and actions -->
       <div class="header-right">
-        <!-- 版本信息 -->
+        <!-- Version -->
         <div class="version-info" @click="handleVersionCheck">
           <el-badge :is-dot="hasUpdate" type="warning">
             <span class="version-text">{{ APP_VERSION }}</span>
           </el-badge>
         </div>
         
-        <!-- 轮询状�? -->
+        <!-- Polling status -->
         <div class="polling-status">
-          <el-tooltip :content="pollingStatus ? '轮询运行�?' : '轮询已停�?'">
+          <el-tooltip :content="pollingStatus ? '\u8f6e\u8be2\u8fd0\u884c\u4e2d' : '\u8f6e\u8be2\u5df2\u505c\u6b62'">
             <el-icon 
               :class="['polling-icon', { 'active': pollingStatus, 'inactive': !pollingStatus }]"
               size="16"
@@ -32,13 +32,13 @@
           </el-tooltip>
         </div>
         
-        <!-- 当前用户 -->
-        <el-dropdown v-if="currentUser" trigger="click" class="user-dropdown">
+        <!-- Authenticated user -->
+        <el-dropdown v-if="username" trigger="click" class="user-dropdown">
           <div class="user-info">
             <el-avatar :size="32" class="user-avatar">
               <el-icon><User /></el-icon>
             </el-avatar>
-            <span class="username">{{ currentUser }}</span>
+            <span class="username">{{ username }}</span>
             <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
           </div>
           <template #dropdown>
@@ -55,7 +55,7 @@
           </template>
         </el-dropdown>
         
-        <!-- 通知按钮 -->
+        <!-- Notifications -->
         <el-button type="text" class="notification-btn" @click="showNotifications = true">
           <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
             <el-icon size="18"><Bell /></el-icon>
@@ -64,12 +64,12 @@
       </div>
     </div>
     
-    <!-- 移动端菜单抽屉已移除，使用底部导航代�? -->
+    <!-- Mobile uses bottom navigation -->
     
-    <!-- 通知面板 -->
+    <!-- Notification drawer -->
     <el-drawer
       v-model="showNotifications"
-      title="通知中心"
+      title="&#36890;&#30693;&#20013;&#24515;"
       direction="rtl"
       size="320px"
       class="notification-drawer"
@@ -77,7 +77,7 @@
       <div class="notification-content">
         <div v-if="notifications.length === 0" class="empty-notifications">
           <el-icon size="48" color="#c0c4cc"><Bell /></el-icon>
-          <p>暂无通知</p>
+          <p>&#26242;&#26080;&#36890;&#30693;</p>
         </div>
         
         <div v-else class="notification-list">
@@ -108,34 +108,31 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { useAuthStore, useUserStore, useVersionStore } from '@/stores'
+import { useAuthStore, useVersionStore } from '@/stores'
 import { usePolling } from '@/composables/usePolling'
 import { APP_VERSION } from '@/config/version'
 import { formatTime } from '@/utils/helpers'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-// Props & Emits - 移动端菜单相关的emit已移�?
-
 // Composables
 const router = useRouter()
 const authStore = useAuthStore()
-const userStore = useUserStore()
 const versionStore = useVersionStore()
-const { currentUser } = storeToRefs(userStore)
+const { username } = storeToRefs(authStore)
 const { hasUpdate } = storeToRefs(versionStore)
 const { isRunning: pollingStatus } = usePolling()
 
-// 版本检查方�?
+// Version check
 const handleVersionCheck = () => {
-  versionStore.checkForUpdates() // 检查版�?
+  versionStore.checkForUpdates()
 }
 
-// 响应式状�?
+// Reactive state
 const showNotifications = ref(false)
 const unreadCount = ref(0)
 const notifications = ref<any[]>([])
 
-// 方法
+// Actions
 
 const logout = async () => {
   try {
@@ -183,8 +180,7 @@ const getNotificationIcon = (type: string) => {
   return icons[type as keyof typeof icons] || 'Bell'
 }
 
-// 初始化通知数据（模拟）
-// 实际项目中应该从API获取
+// Mock notification data; replace with API data when available.
 </script>
 
 <style scoped>
@@ -233,7 +229,7 @@ const getNotificationIcon = (type: string) => {
   margin: 0;
 }
 
-/* 移动端菜单按钮样式已移除 */
+/* Mobile menu button styles removed */
 
 .header-right {
   display: flex;
@@ -313,9 +309,9 @@ const getNotificationIcon = (type: string) => {
   padding: 8px !important;
 }
 
-/* 移动端菜单样式已移除，使用底部导航代�? */
+/* Mobile uses bottom navigation */
 
-/* 通知面板样式 */
+/* Notification drawer */
 .notification-content {
   height: 100%;
   display: flex;
@@ -386,7 +382,7 @@ const getNotificationIcon = (type: string) => {
   color: #909399;
 }
 
-/* 响应式设�? - 统一断点与JavaScript保持一�? */
+/* Responsive breakpoint aligned with JavaScript */
 @media (max-width: 1200px) {
   .header-content {
     padding: 0 16px;

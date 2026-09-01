@@ -1,17 +1,17 @@
-# -*- coding: utf-8 -*-
 from pathlib import Path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
 VERSION_TS = ROOT / "frontend" / "src" / "config" / "version.ts"
 VERSION_TS.write_text(
-    """// 版本管理配置
+    """// \u7248\u672c\u7ba1\u7406\u914d\u7f6e
 export const VERSION_CONFIG = {
   APP_VERSION: __APP_VERSION__,
   BUILD_TIME: __BUILD_TIME__,
-  RELEASE_NOTES: 'network-autosave 1.0.0 初始发布',
+  RELEASE_NOTES: 'network-autosave 1.0.0 \u521d\u59cb\u53d1\u5e03',
   UPDATE_NOTES: {
-    'v1.0.0': '多网盘自动转存工具 network-autosave 初始版本',
+    'v1.0.0': '\u591a\u7f51\u76d8\u81ea\u52a8\u8f6c\u5b58\u5de5\u5177 network-autosave \u521d\u59cb\u7248\u672c',
   }
 } as const
 
@@ -26,9 +26,9 @@ MAIN_TS = ROOT / "frontend" / "src" / "main.ts"
 text = MAIN_TS.read_text(encoding="utf-8")
 if "console.log(" in text:
     lines = text.splitlines()
-    for i, line in enumerate(lines):
+    for index, line in enumerate(lines):
         if line.strip().startswith("console.log("):
-            lines[i] = "console.log('网盘自动转存工具前端已启动')"
+            lines[index] = "console.log('\\u7f51\\u76d8\\u81ea\\u52a8\\u8f6c\\u5b58\\u5de5\\u5177\\u524d\\u7aef\\u5df2\\u542f\\u52a8')"
             break
     MAIN_TS.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -39,10 +39,14 @@ if "baidu-autosave" in readme:
 readme = readme.replace("baidu-autosave", "network-autosave")
 readme = readme.replace("kokojacket/baidu-autosave", "WHaoKong/network-autosave")
 readme = readme.replace("kokojacket/network-autosave", "WHaoKong/network-autosave")
-readme = readme.replace("# 百度网盘自动转存", "# network-autosave 多网盘自动转存")
 readme = readme.replace(
-    "一个基于Flask的百度网盘自动转存系统",
-    "一个基于 Flask 的多网盘自动转存系统，支持百度、夸克、UC、阿里云、迅雷等网盘",
+    "# \u767e\u5ea6\u7f51\u76d8\u81ea\u52a8\u8f6c\u5b58",
+    "# network-autosave \u591a\u7f51\u76d8\u81ea\u52a8\u8f6c\u5b58",
+)
+readme = readme.replace(
+    "\u4e00\u4e2a\u57fa\u4e8eFlask\u7684\u767e\u5ea6\u7f51\u76d8\u81ea\u52a8\u8f6c\u5b58\u7cfb\u7edf",
+    "\u4e00\u4e2a\u57fa\u4e8e Flask \u7684\u591a\u7f51\u76d8\u81ea\u52a8\u8f6c\u5b58\u7cfb\u7edf\uff0c"
+    "\u652f\u6301\u767e\u5ea6\u3001\u5938\u514b\u3001UC\u3001\u963f\u91cc\u4e91\u3001\u8fc5\u96f7\u7b49\u7f51\u76d8",
 )
 README.write_text(readme, encoding="utf-8")
 

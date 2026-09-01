@@ -1,9 +1,7 @@
-// 路由配置
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { PAGE_TITLES } from '@/utils/constants'
 
-// 路由懒加�?
 const LoginView = () => import('@/views/login/LoginView.vue')
 const DashboardView = () => import('@/views/dashboard/DashboardView.vue')
 const TasksView = () => import('@/views/tasks/TasksView.vue')
@@ -76,75 +74,61 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
-  
-  // 设置页面标题
+
   if (to.meta.title) {
     document.title = `${to.meta.title} - \u7f51\u76d8\u81ea\u52a8\u8f6c\u5b58`
   }
-  
-  // 检查路由是否需要认�?
-  if (to.meta.requiresAuth) {
-    // 如果未登录，重定向到登录�?
+
+  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
+    await authStore.initAuth()
+
     if (!authStore.isLoggedIn) {
-      // 尝试从本地恢复认证状�?
-      await authStore.initAuth()
-      
-      // 再次检�?
-      if (!authStore.isLoggedIn) {
-        next({
-          path: '/login',
-          query: { redirect: to.fullPath }
-        })
-        return
-      }
+      next({
+        path: '/login',
+        query: { redirect: to.fullPath }
+      })
+      return
     }
   }
-  
-  // 如果已登录用户访问登录页，重定向到首�?
+
   if (to.path === '/login' && authStore.isLoggedIn) {
     next('/')
     return
   }
-  
+
   next()
 })
 
-// 路由后置守卫
 router.afterEach((to) => {
-  // 可以在这里添加页面访问统计等逻辑
-  console.log(`导航�?: ${to.path}`)
+  console.log(`\u5bfc\u822a\u5230: ${to.path}`)
 })
 
 export default router
 
-// 导出路由相关的工具函�?
 export const getMenuRoutes = () => {
-  return routes.filter(route => 
-    route.meta?.requiresAuth && 
-    !route.meta?.hideInMenu && 
-    route.name !== 'Dashboard' // 排除首页，通常不在菜单中显�?
+  return routes.filter(route =>
+    route.meta?.requiresAuth &&
+    !route.meta?.hideInMenu &&
+    route.name !== 'Dashboard'
   )
 }
 
 export const getBreadcrumbs = (currentRoute: any) => {
-  const breadcrumbs = []
-  
-  // 添加首页
-  breadcrumbs.push({
-    title: '首页',
-    path: '/dashboard'
-  })
-  
-  // 添加当前页面
+  const breadcrumbs = [
+    {
+      title: '\u9996\u9875',
+      path: '/dashboard'
+    }
+  ]
+
   if (currentRoute.meta?.title && currentRoute.path !== '/dashboard') {
     breadcrumbs.push({
       title: currentRoute.meta.title,
       path: currentRoute.path
     })
   }
-  
+
   return breadcrumbs
 }

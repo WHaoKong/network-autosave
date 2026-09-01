@@ -1,7 +1,7 @@
 <template>
   <aside class="app-sidebar" :class="{ collapsed: isCollapsed }">
     <div class="sidebar-content">
-      <!-- 侧边栏头�? -->
+      <!-- 侧边栏头部 -->
       <div class="sidebar-header">
         <div v-if="!isCollapsed" class="header-content">
           <img src="/favicon/favicon.svg" alt="Logo" class="sidebar-logo" />
@@ -29,10 +29,10 @@
           class="sidebar-menu"
           @select="handleMenuSelect"
         >
-          <!-- 仪表�? -->
+          <!-- 仪表盘 -->
           <el-menu-item index="/dashboard" class="menu-item">
             <el-icon><Odometer /></el-icon>
-            <template #title>仪表�?</template>
+            <template #title>仪表盘</template>
           </el-menu-item>
           
           <!-- 任务管理 -->
@@ -73,23 +73,23 @@
         </el-menu>
       </nav>
       
-      <!-- 侧边栏底�? -->
+      <!-- 侧边栏底部 -->
       <div class="sidebar-footer">
-        <!-- 系统状�? -->
+        <!-- 系统状态 -->
         <div v-if="!isCollapsed" class="system-status">
           <div class="status-item">
-            <span class="status-label">轮询状�?</span>
+            <span class="status-label">轮询状态</span>
             <el-tag
               :type="pollingStatus ? 'success' : 'danger'"
               size="small"
               class="status-value"
             >
-              {{ pollingStatus ? '运行�?' : '已停�?' }}
+              {{ pollingStatus ? '运行中' : '已停止' }}
             </el-tag>
           </div>
         </div>
         
-        <!-- ???? -->
+        <!-- 快捷操作 -->
         <div class="quick-actions">
           <el-tooltip content="添加任务" :disabled="!isCollapsed">
             <el-button
@@ -115,7 +115,7 @@
           <div v-if="hasUpdate" class="update-notice">
             <el-button type="text" size="small" @click="handleVersionCheck">
               <el-icon><Download /></el-icon>
-              发现新版�?
+              发现新版本
             </el-button>
           </div>
         </div>
@@ -153,18 +153,18 @@ const { taskStats } = storeToRefs(taskStore)
 const { userStats } = storeToRefs(userStore)
 const { hasUpdate } = storeToRefs(versionStore)
 
-// 轮询状�?
+// 轮询状态
 const { isRunning: pollingStatus } = usePolling()
 
-// 版本检查方�?
+// 版本检查方法
 const handleVersionCheck = () => {
-  versionStore.checkForUpdates() // 检查版�?
+  versionStore.checkForUpdates()
 }
 
-// 状�?
+// 状态
 const isCollapsed = ref(false)
 
-// 计算属�?
+// 计算属性
 const activeRoute = computed(() => {
   return route.path
 })
@@ -173,7 +173,7 @@ const activeRoute = computed(() => {
 // 方法
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
-  // 保存折叠状�?
+  // 保存折叠状态
   appStorage.setItem('sidebar-collapsed', isCollapsed.value)
 }
 
@@ -185,9 +185,9 @@ const showAddTaskDialog = () => {
   emit('add-task')
 }
 
-// 初始�?
+// 初始化
 onMounted(() => {
-  // 恢复折叠状�?
+  // 恢复折叠状态
   const savedCollapsed = appStorage.getItem<boolean>('sidebar-collapsed')
   if (savedCollapsed !== null) {
     isCollapsed.value = savedCollapsed
@@ -434,7 +434,7 @@ onMounted(() => {
   text-align: center;
 }
 
-/* 折叠状态下的样式调�? */
+/* 折叠状态下的样式调整 */
 .app-sidebar.collapsed .sidebar-header {
   padding: 0 12px;
 }
@@ -452,7 +452,7 @@ onMounted(() => {
   display: none;
 }
 
-/* 滚动条样�? */
+/* 滚动条样式 */
 .sidebar-nav::-webkit-scrollbar {
   width: 4px;
 }
@@ -470,7 +470,7 @@ onMounted(() => {
   background: #a8a8a8;
 }
 
-/* 响应式设�? */
+/* 响应式设计 */
 @media (max-width: 1200px) {
   .app-sidebar {
     transform: translateX(-100%);

@@ -46,6 +46,13 @@
                 <el-tag size="small">{{ displayProviderName(user.provider) }}</el-tag>
                 <el-tag v-if="user.is_current" type="success" size="small">当前</el-tag>
                 <el-tag v-else-if="user.cookies_valid === false" type="danger" size="small">失效</el-tag>
+                <el-tag
+                  v-if="user.provider === 'quark' && user.signin_enabled"
+                  type="success"
+                  size="small"
+                >
+                  自动签到
+                </el-tag>
               </div>
               <div class="user-actions">
                 <el-dropdown trigger="click">
@@ -62,6 +69,13 @@
                       </el-dropdown-item>
                       <el-dropdown-item @click="getUserCookies(user)">
                         查看 Cookies
+                      </el-dropdown-item>
+                      <el-dropdown-item
+                        v-if="user.provider === 'quark'"
+                        :disabled="signinRunning === user.username || !user.signin_configured"
+                        @click="runQuarkSignin(user)"
+                      >
+                        {{ signinRunning === user.username ? '签到中...' : '立即签到' }}
                       </el-dropdown-item>
                       <el-dropdown-item 
                         v-if="!user.is_current"
@@ -96,6 +110,13 @@
               <span class="activity-label">最后活跃：</span>
               <span class="activity-time">{{ formatTime(user.last_active) }}</span>
             </div>
+            <div v-if="user.provider === 'quark'" class="signin-status">
+              <span class="activity-label">签到状态：</span>
+              <span>{{ user.signin_meta?.last_message || (user.signin_configured ? '尚未签到' : '未配置凭据') }}</span>
+              <span v-if="user.signin_meta?.last_run_at">
+                （{{ formatTime(user.signin_meta.last_run_at) }}）
+              </span>
+            </div>
           </div>
         </div>
       </el-card>
@@ -104,7 +125,7 @@
     <!-- 添加/编辑用户对话 -->
     <el-dialog
       v-model="showAddUserDialog"
-      :title="editingUser ? '编辑用户' : 'Add User'"
+      :title="editingUser ? '编辑用户' : '添加用户'"
       width="600px"
       @closed="resetUserForm"
     >
@@ -144,6 +165,48 @@
             获取方法：打开百度网盘网页版，按F12打开开发者工具，在Network标签下找到任意请求，复制Cookies
           </div>
         </el-form-item>
+
+        <template v-if="userForm.provider === 'quark'">
+          <el-divider content-position="left">每日签到领空间</el-divider>
+          <el-form-item label="自动签到">
+            <el-switch v-model="userForm.signin_enabled" />
+          </el-form-item>
+          <el-form-item label="kps">
+            <el-input
+              v-model="userForm.kps"
+              type="password"
+              show-password
+              autocomplete="off"
+              :placeholder="editingUser?.signin_configured ? '留空则保留现有值' : '请输入手机客户端抓包参数 kps'"
+            />
+          </el-form-item>
+          <el-form-item label="sign">
+            <el-input
+              v-model="userForm.sign"
+              type="password"
+              show-password
+              autocomplete="off"
+              :placeholder="editingUser?.signin_configured ? '留空则保留现有值' : '请输入手机客户端抓包参数 sign'"
+            />
+          </el-form-item>
+          <el-form-item label="vcode">
+            <el-input
+              v-model="userForm.vcode"
+              type="password"
+              show-password
+              autocomplete="off"
+              :placeholder="editingUser?.signin_configured ? '留空则保留现有值' : '请输入手机客户端抓包参数 vcode'"
+            />
+            <div class="form-help">
+              从夸克手机客户端签到页抓取 drive-m.quark.cn 请求参数。
+              <a
+                href="https://github.com/Cp0204/quark-auto-save/wiki/%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7%E9%9B%86%E9%94%A6#%E6%AF%8F%E6%97%A5%E7%AD%BE%E5%88%B0%E9%A2%86%E7%A9%BA%E9%97%B4"
+                target="_blank"
+                rel="noopener noreferrer"
+              >查看抓取说明</a>
+            </div>
+          </el-form-item>
+        </template>
       </el-form>
       
       <template #footer>
@@ -184,11 +247,16 @@ const showAddUserDialog = ref(false)
 const userFormRef = ref<FormInstance>()
 const editingUser = ref<User | null>(null)
 const submitting = ref(false)
+const signinRunning = ref<string | null>(null)
 
 const userForm = ref({
   provider: 'baidu' as NetdiskProvider,
   username: '',
-  cookies: ''
+  cookies: '',
+  signin_enabled: false,
+  kps: '',
+  sign: '',
+  vcode: ''
 })
 
 const userFormRules = {
@@ -225,14 +293,22 @@ const editUser = async (user: User) => {
     userForm.value = {
       provider: user.provider || 'baidu',
       username: user.username,
-      cookies: userCookies || '' // 加载现有cookies以供编辑
+      cookies: userCookies || '',
+      signin_enabled: user.signin_enabled || false,
+      kps: '',
+      sign: '',
+      vcode: ''
     }
   } catch (error) {
     // 如果获取cookies失败，使用空字符
     userForm.value = {
       provider: user.provider || 'baidu',
       username: user.username,
-      cookies: ''
+      cookies: '',
+      signin_enabled: user.signin_enabled || false,
+      kps: '',
+      sign: '',
+      vcode: ''
     }
     console.warn('无法加载用户cookies:', error)
   }
@@ -285,11 +361,35 @@ const getUserCookies = async (user: User) => {
   }
 }
 
+const runQuarkSignin = async (user: User) => {
+  signinRunning.value = user.username
+  try {
+    const result = await userStore.runQuarkSignin(user.username)
+    const rewardMb = ((result.reward_bytes || 0) / (1024 ** 2)).toFixed(2)
+    const rewardText = result.reward_bytes ? `，奖励 ${rewardMb} MB` : ''
+    ElMessage.success(`${result.message}${rewardText}`)
+  } catch (error) {
+    ElMessage.error(`签到失败：${error}`)
+  } finally {
+    signinRunning.value = null
+  }
+}
+
 const handleUserSubmit = async () => {
   if (!userFormRef.value) return
 
   const valid = await userFormRef.value.validate().catch(() => false)
   if (!valid) return
+
+  if (
+    userForm.value.provider === 'quark'
+    && userForm.value.signin_enabled
+    && !editingUser.value?.signin_configured
+    && (!userForm.value.kps || !userForm.value.sign || !userForm.value.vcode)
+  ) {
+    ElMessage.warning('启用自动签到前请完整填写 kps、sign、vcode')
+    return
+  }
 
   submitting.value = true
 
@@ -307,6 +407,16 @@ const handleUserSubmit = async () => {
       ElMessage.success('用户已添')
     }
 
+    if (userForm.value.provider === 'quark') {
+      await userStore.updateQuarkSigninConfig({
+        username: userForm.value.username,
+        enabled: userForm.value.signin_enabled,
+        kps: userForm.value.kps,
+        sign: userForm.value.sign,
+        vcode: userForm.value.vcode
+      })
+    }
+
     showAddUserDialog.value = false
     resetUserForm()
   } catch (error) {
@@ -321,7 +431,11 @@ const resetUserForm = () => {
   userForm.value = {
     provider: 'baidu',
     username: '',
-    cookies: ''
+    cookies: '',
+    signin_enabled: false,
+    kps: '',
+    sign: '',
+    vcode: ''
   }
   userFormRef.value?.resetFields()
 }
@@ -460,6 +574,12 @@ onMounted(async () => {
 .user-activity {
   font-size: 12px;
   color: #999;
+}
+
+.signin-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #606266;
 }
 
 .activity-label {

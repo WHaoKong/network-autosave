@@ -8,6 +8,11 @@
         "users": {},
         "current_user": null
     },
+    "quark_signin": {
+        "enabled": false,
+        "schedule": "0 8 * * *",
+        "notify": true
+    },
     "retry": {
         "max_attempts": 3,
         "delay_seconds": 5

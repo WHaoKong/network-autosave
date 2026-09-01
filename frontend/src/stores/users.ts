@@ -1,19 +1,24 @@
-// 用户管理状
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiService } from '@/services'
-import type { User, CreateUserRequest, UpdateUserRequest, UserQuota, NetdiskProvider } from '@/types'
+import type {
+  User,
+  CreateUserRequest,
+  UpdateUserRequest,
+  UserQuota,
+  NetdiskProvider,
+  QuarkSigninConfigRequest,
+  QuarkSigninResult
+} from '@/types'
 import { getErrorMessage } from '@/utils/helpers'
 
 export const useUserStore = defineStore('users', () => {
-  // 状
   const users = ref<User[]>([])
   const currentUser = ref<string>('')
   const userQuota = ref<UserQuota | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // 计算属
   const currentUserInfo = computed(() => {
     return users.value.find(user => user.is_current) || null
   })
@@ -26,15 +31,12 @@ export const useUserStore = defineStore('users', () => {
     return users.value.filter(user => user.cookies_valid === false)
   })
 
-  const userStats = computed(() => {
-    return {
-      total: users.value.length,
-      valid: validUsers.value.length,
-      invalid: invalidUsers.value.length
-    }
-  })
+  const userStats = computed(() => ({
+    total: users.value.length,
+    valid: validUsers.value.length,
+    invalid: invalidUsers.value.length
+  }))
 
-  // 操作方法
   const normalizeQuota = (quota: any) => {
     if (!quota) return undefined
     const used = Number(quota.used ?? 0)
@@ -53,7 +55,7 @@ export const useUserStore = defineStore('users', () => {
   const fetchUsers = async () => {
     loading.value = true
     error.value = null
-    
+
     try {
       const response = await apiService.getUsers()
       if (response.success) {
@@ -64,11 +66,11 @@ export const useUserStore = defineStore('users', () => {
         }))
         currentUser.value = response.current_user || response.data?.current_user || ''
       } else {
-        throw new Error(response.message || '获取用户列表失败')
+        throw new Error(response.message || '\u83b7\u53d6\u7528\u6237\u5217\u8868\u5931\u8d25')
       }
     } catch (err) {
       error.value = getErrorMessage(err)
-      console.error('获取用户列表失败:', err)
+      console.error('\u83b7\u53d6\u7528\u6237\u5217\u8868\u5931\u8d25:', err)
     } finally {
       loading.value = false
     }
@@ -79,7 +81,6 @@ export const useUserStore = defineStore('users', () => {
       const response = await apiService.getUserQuota()
       if (response.success) {
         const quota = response.quota || response.data?.quota || response.data
-        // 将后端返回的数据格式化为前端需要的格式
         userQuota.value = {
           used: quota.used || 0,
           total: quota.total || 0,
@@ -88,11 +89,11 @@ export const useUserStore = defineStore('users', () => {
           percent: quota.percent || 0
         }
       } else {
-        throw new Error(response.message || '获取用户配额失败')
+        throw new Error(response.message || '\u83b7\u53d6\u7528\u6237\u914d\u989d\u5931\u8d25')
       }
     } catch (err) {
       error.value = getErrorMessage(err)
-      console.error('获取用户配额失败:', err)
+      console.error('\u83b7\u53d6\u7528\u6237\u914d\u989d\u5931\u8d25:', err)
     }
   }
 
@@ -100,11 +101,10 @@ export const useUserStore = defineStore('users', () => {
     try {
       const response = await apiService.createUser(userData)
       if (response.success) {
-        await fetchUsers() // 重新获取用户列表
+        await fetchUsers()
         return true
-      } else {
-        throw new Error(response.message || '添加用户失败')
       }
+      throw new Error(response.message || '\u6dfb\u52a0\u7528\u6237\u5931\u8d25')
     } catch (err) {
       error.value = getErrorMessage(err)
       throw err
@@ -115,11 +115,10 @@ export const useUserStore = defineStore('users', () => {
     try {
       const response = await apiService.updateUser(userData)
       if (response.success) {
-        await fetchUsers() // 重新获取用户列表
+        await fetchUsers()
         return true
-      } else {
-        throw new Error(response.message || '更新用户失败')
       }
+      throw new Error(response.message || '\u66f4\u65b0\u7528\u6237\u5931\u8d25')
     } catch (err) {
       error.value = getErrorMessage(err)
       throw err
@@ -130,11 +129,10 @@ export const useUserStore = defineStore('users', () => {
     try {
       const response = await apiService.deleteUser(username, provider)
       if (response.success) {
-        await fetchUsers() // 重新获取用户列表
+        await fetchUsers()
         return true
-      } else {
-        throw new Error(response.message || '删除用户失败')
       }
+      throw new Error(response.message || '\u5220\u9664\u7528\u6237\u5931\u8d25')
     } catch (err) {
       error.value = getErrorMessage(err)
       throw err
@@ -145,11 +143,9 @@ export const useUserStore = defineStore('users', () => {
     try {
       const response = await apiService.switchUser(username, provider)
       if (response.success) {
-        // 更新当前用户状
         users.value.forEach(user => {
           user.is_current = user.username === username && (!provider || user.provider === provider)
-          // 如果返回的响应包含用户配额信息，也要格式
-          if (response.current_user && response.current_user.quota && user.username === username) {
+          if (response.current_user?.quota && user.username === username) {
             user.quota = {
               ...response.current_user.quota,
               used_formatted: `${response.current_user.quota.used_gb || 0} GB`,
@@ -158,14 +154,10 @@ export const useUserStore = defineStore('users', () => {
           }
         })
         currentUser.value = username
-        
-        // 重新获取用户配额
         await fetchUserQuota()
-        
         return true
-      } else {
-        throw new Error(response.message || '切换用户失败')
       }
+      throw new Error(response.message || '\u5207\u6362\u7528\u6237\u5931\u8d25')
     } catch (err) {
       error.value = getErrorMessage(err)
       throw err
@@ -177,16 +169,44 @@ export const useUserStore = defineStore('users', () => {
       const response = await apiService.getUserCookies(username, provider)
       if (response.success) {
         return response.cookies || response.data?.cookies
-      } else {
-        throw new Error(response.message || '获取用户Cookies失败')
       }
+      throw new Error(response.message || '\u83b7\u53d6\u7528\u6237 Cookies \u5931\u8d25')
     } catch (err) {
       error.value = getErrorMessage(err)
       throw err
     }
   }
 
-  // 辅助方法
+  const updateQuarkSigninConfig = async (data: QuarkSigninConfigRequest) => {
+    try {
+      const response = await apiService.updateQuarkSigninConfig(data)
+      if (!response.success) {
+        throw new Error(response.message || '\u4fdd\u5b58\u5938\u514b\u7b7e\u5230\u914d\u7f6e\u5931\u8d25')
+      }
+      await fetchUsers()
+      return true
+    } catch (err) {
+      error.value = getErrorMessage(err)
+      throw err
+    }
+  }
+
+  const runQuarkSignin = async (username: string): Promise<QuarkSigninResult> => {
+    try {
+      const response = await apiService.runQuarkSignin(username)
+      const result = response.result || response.data?.result
+      if (!response.success || !result) {
+        throw new Error(response.message || '\u5938\u514b\u7b7e\u5230\u5931\u8d25')
+      }
+      await fetchUsers()
+      return result
+    } catch (err) {
+      error.value = getErrorMessage(err)
+      await fetchUsers()
+      throw err
+    }
+  }
+
   const findUserByUsername = (username: string) => {
     return users.value.find(user => user.username === username)
   }
@@ -207,27 +227,21 @@ export const useUserStore = defineStore('users', () => {
     error.value = null
   }
 
-  // 初始化方
   const init = async () => {
     await fetchUsers()
     await fetchUserQuota()
   }
 
   return {
-    // 状
     users,
     currentUser,
     userQuota,
     loading,
     error,
-    
-    // 计算属
     currentUserInfo,
     validUsers,
     invalidUsers,
     userStats,
-    
-    // 操作方法
     fetchUsers,
     fetchUserQuota,
     addUser,
@@ -235,8 +249,8 @@ export const useUserStore = defineStore('users', () => {
     deleteUser,
     switchUser,
     getUserCookies,
-    
-    // 辅助方法
+    updateQuarkSigninConfig,
+    runQuarkSignin,
     findUserByUsername,
     isCurrentUser,
     updateUserStatus,

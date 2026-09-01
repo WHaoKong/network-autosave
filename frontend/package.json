@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "check:encoding": "python ../scripts/check_utf8.py",
+    "prebuild": "npm run check:encoding",
     "dev": "vite",
     "build": "vue-tsc && vite build",
     "build:prod": "npx vite build",

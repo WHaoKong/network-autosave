@@ -437,6 +437,50 @@
 
             <el-divider />
 
+            <!-- 夸克签到配置 -->
+            <div class="setting-section">
+              <h3>夸克每日签到</h3>
+              <el-form :model="quarkSigninForm" label-width="150px">
+                <el-form-item label="启用自动签到">
+                  <el-switch v-model="quarkSigninForm.enabled" />
+                  <div class="form-tip">按计划为用户管理中已单独启用的夸克账号签到</div>
+                </el-form-item>
+
+                <template v-if="quarkSigninForm.enabled">
+                  <el-form-item label="签到时间">
+                    <el-input
+                      v-model="quarkSigninForm.schedule"
+                      placeholder="0 8 * * *"
+                      style="width: 200px;"
+                    />
+                    <div class="form-tip">Cron 表达式，默认每天北京时间 08:00</div>
+                  </el-form-item>
+
+                  <el-form-item label="发送签到通知">
+                    <el-switch v-model="quarkSigninForm.notify" />
+                    <div class="form-tip">需同时启用通知设置；不会在通知中包含签到凭据</div>
+                  </el-form-item>
+                </template>
+
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  show-icon
+                >
+                  <template #title>
+                    请在“用户管理”中为每个夸克账号填写 kps、sign、vcode 并单独开启。
+                    <a
+                      href="https://github.com/Cp0204/quark-auto-save/wiki/%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7%E9%9B%86%E9%94%A6#%E6%AF%8F%E6%97%A5%E7%AD%BE%E5%88%B0%E9%A2%86%E7%A9%BA%E9%97%B4"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >查看抓包说明</a>
+                  </template>
+                </el-alert>
+              </el-form>
+            </div>
+
+            <el-divider />
+
             <!-- 配额告警配置 -->
             <div class="setting-section">
               <h3>配额告警配置</h3>
@@ -628,6 +672,13 @@ const quotaAlertForm = reactive({
   check_schedule: '0 0 * * *'
 })
 
+// 夸克每日签到配置
+const quarkSigninForm = reactive({
+  enabled: false,
+  schedule: '0 8 * * *',
+  notify: true
+})
+
 // 认证配置 (对应config.json中的auth)
 const authForm = reactive({
   users: 'koko',
@@ -788,15 +839,21 @@ const saveShareSettings = async () => {
 }
 
 const saveSystemSettings = async () => {
+  if (quarkSigninForm.enabled && quarkSigninForm.schedule.trim().split(/\s+/).length !== 5) {
+    ElMessage.warning('夸克签到 Cron 表达式必须包含 5 个字段')
+    return
+  }
+
   try {
-    // 保存所有系统设置
-    await Promise.all([
-      configStore.updateRetryConfig(retryForm),
-      configStore.updateSchedulerConfig(schedulerForm),
-      configStore.updateFileOpsConfig(fileOpsForm),
-      configStore.updateQuotaAlertConfig(quotaAlertForm),
-      configStore.updateAuthConfig(authForm)
-    ])
+    // 单次提交，避免并发配置请求重复重启调度器
+    await configStore.updateConfig({
+      retry: { ...retryForm },
+      scheduler: { ...schedulerForm },
+      file_operations: { ...fileOpsForm },
+      quota_alert: { ...quotaAlertForm },
+      quark_signin: { ...quarkSigninForm },
+      auth: { ...authForm }
+    })
     ElMessage.success('系统设置已保存')
   } catch (error) {
     ElMessage.error(`保存失败：${error}`)
@@ -913,6 +970,12 @@ const initForms = () => {
     quotaAlertForm.enabled = config.value.quota_alert.enabled ?? false
     quotaAlertForm.threshold_percent = config.value.quota_alert.threshold_percent ?? 98
     quotaAlertForm.check_schedule = config.value.quota_alert.check_schedule ?? '0 0 * * *'
+  }
+
+  if (config.value.quark_signin) {
+    quarkSigninForm.enabled = config.value.quark_signin.enabled ?? false
+    quarkSigninForm.schedule = config.value.quark_signin.schedule ?? '0 8 * * *'
+    quarkSigninForm.notify = config.value.quark_signin.notify !== false
   }
 
   // 认证设置 (从config.auth加载)

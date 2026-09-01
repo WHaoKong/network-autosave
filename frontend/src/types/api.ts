@@ -1,5 +1,3 @@
-// API 相关类型定义
-
 export interface ApiResponse<T = any> {
   success: boolean
   message?: string
@@ -7,7 +5,6 @@ export interface ApiResponse<T = any> {
   [key: string]: any
 }
 
-// 任务相关类型
 export type NetdiskProvider = 'baidu' | 'quark' | 'aliyun' | 'uc' | 'xunlei'
 
 export interface Task {
@@ -75,7 +72,6 @@ export interface BatchOperation {
   taskIds: number[]
 }
 
-// 用户相关类型
 export interface User {
   username: string
   provider?: NetdiskProvider
@@ -83,6 +79,37 @@ export interface User {
   quota?: UserQuota
   cookies_valid?: boolean
   last_active?: string
+  signin_enabled?: boolean
+  signin_configured?: boolean
+  signin_meta?: QuarkSigninMeta | null
+}
+
+export interface QuarkSigninMeta {
+  last_run_at?: string
+  last_sign_date?: string | null
+  last_reward_bytes?: number
+  last_status?: string
+  last_message?: string
+}
+
+export interface QuarkSigninConfigRequest {
+  username: string
+  enabled: boolean
+  kps?: string
+  sign?: string
+  vcode?: string
+}
+
+export interface QuarkSigninResult {
+  account: string
+  success: boolean
+  already_signed?: boolean
+  reward_bytes?: number
+  status: string
+  message: string
+  sign_progress?: number
+  sign_target?: number
+  total_capacity?: number
 }
 
 export interface UserQuota {
@@ -106,7 +133,6 @@ export interface UpdateUserRequest {
   cookies: string
 }
 
-// 配置相关类型
 export interface Config {
   notifications: NotificationConfig
   scheduling: SchedulingConfig
@@ -139,7 +165,6 @@ export interface GeneralConfig {
   concurrent_limit: number
 }
 
-// 日志相关类型
 export interface LogEntry {
   timestamp: string
   level: 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG'
@@ -147,7 +172,6 @@ export interface LogEntry {
   module?: string
 }
 
-// 版本相关类型
 export interface VersionInfo {
   current: string
   latest: string

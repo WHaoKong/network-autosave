@@ -29,7 +29,7 @@ const createProxyConfig = (withBypass = false) => ({
   cookiePathRewrite: false,
   configure: (proxy) => {
     proxy.on('proxyReq', (proxyReq, req) => {
-      // 使用当前访问地址透传 Host，兼容本�? IP 调试�?
+      // Forward the current Host so local IP access works correctly.
       const host = req.headers.host || 'localhost:3001'
       proxyReq.setHeader('X-Forwarded-Host', host)
       proxyReq.setHeader('X-Forwarded-Proto', forwardedProto)
@@ -38,7 +38,7 @@ const createProxyConfig = (withBypass = false) => ({
   ...(withBypass
     ? {
         bypass: (req) => {
-          // 只代理表单提交，页面路由继续交给前端处理�?
+          // Proxy form submissions only; let the frontend handle page routes.
           if (req.method !== 'POST') {
             return '/index.html'
           }
@@ -70,7 +70,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // 允许外部网络访问（包括手机）
+    host: '0.0.0.0', // Allow access from the local network, including mobile devices.
     port: 3001,
     open: false,
     proxy: {

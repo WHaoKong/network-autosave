@@ -25,6 +25,15 @@ for stream in (sys.stdout, sys.stderr):
 
 from gevent.pywsgi import WSGIServer
 
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIST_DIR = os.path.join(APP_ROOT, 'frontend', 'dist')
+LEGACY_STATIC_DIR = os.path.join(APP_ROOT, 'static')
+FRONTEND_DIR = (
+    FRONTEND_DIST_DIR
+    if os.path.isfile(os.path.join(FRONTEND_DIST_DIR, 'index.html'))
+    else LEGACY_STATIC_DIR
+)
+
 # GitHub 仓库信息
 GITHUB_REPO = 'WHaoKong/network-autosave'
 # Docker Hub 信息
@@ -315,7 +324,7 @@ def login():
             return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
             
     # GET请求返回SPA的index.html，让Vue Router处理登录页面
-    return send_from_directory('static', 'index.html')
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 @app.route('/logout')
 def logout():
@@ -328,7 +337,7 @@ def logout():
 @login_required
 def index():
     """首页 - 返回新前端SPA"""
-    return send_from_directory('static', 'index.html')
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 @app.route('/api/tasks', methods=['GET'])
 @login_required
@@ -848,11 +857,73 @@ def get_users():
         formatted = storage._format_quota(quota)
         if formatted:
             user['quota'] = formatted
+        if user.get('provider') == 'quark':
+            username = user.get('username')
+            user_info = storage.quark_storage.get_user(username) or {}
+            signin = user_info.get('signin') or {}
+            user.update({
+                'signin_enabled': bool(signin.get('enabled', False)),
+                'signin_configured': storage.quark_storage.has_signin_credentials(username),
+                'signin_meta': user_info.get('signin_meta')
+            })
     
     return jsonify({
         'success': True, 
         'users': users,
         'current_user': current_username
+    })
+
+@app.route('/api/quark/signin/config', methods=['POST'])
+@login_required
+@handle_api_error
+def update_quark_signin_config():
+    """保存单个夸克账号的签到配置，不回传敏感凭据。"""
+    if not storage:
+        return jsonify({'success': False, 'message': '存储未初始化'})
+
+    data = request.get_json() or {}
+    username = str(data.get('username') or '').strip()
+    if not username:
+        return jsonify({'success': False, 'message': '夸克账号不能为空'}), 400
+
+    result = storage.quark_storage.configure_signin(
+        username,
+        enabled=data.get('enabled', False),
+        kps=data.get('kps'),
+        sign=data.get('sign'),
+        vcode=data.get('vcode')
+    )
+    if result['signin_enabled'] and not result['signin_configured']:
+        storage.quark_storage.configure_signin(username, enabled=False)
+        return jsonify({
+            'success': False,
+            'message': '启用自动签到前必须填写 kps、sign、vcode'
+        }), 400
+
+    return jsonify({
+        'success': True,
+        'message': '夸克签到配置已保存',
+        'signin': result
+    })
+
+@app.route('/api/quark/signin/run', methods=['POST'])
+@login_required
+@handle_api_error
+def run_quark_signin():
+    """立即执行单个夸克账号签到。"""
+    if not storage:
+        return jsonify({'success': False, 'message': '存储未初始化'})
+
+    data = request.get_json() or {}
+    username = str(data.get('username') or '').strip()
+    if not username:
+        return jsonify({'success': False, 'message': '夸克账号不能为空'}), 400
+
+    result = storage.quark_storage.run_signin(username)
+    return jsonify({
+        'success': bool(result.get('success')),
+        'message': result.get('message', '签到失败'),
+        'result': result
     })
 
 @app.route('/api/user/add', methods=['POST'])
@@ -1009,10 +1080,10 @@ def update_user():
 
     if provider == 'quark':
         if original_username != username:
-            return jsonify({'success': False, 'message': '????'})
+            return jsonify({'success': False, 'message': '暂不支持重命名夸克网盘用户'})
         if storage.quark_storage.update_user(username, cookies):
             return jsonify({'success': True, 'message': '用户更新成功'})
-        return jsonify({'success': False, 'message': '???cookiesЧ'})
+        return jsonify({'success': False, 'message': '夸克网盘 Cookies 更新失败'})
     if provider == 'uc':
         if original_username != username:
             return jsonify({'success': False, 'message': '暂不支持重命名该网盘用户'})
@@ -1164,6 +1235,7 @@ def get_config():
         'quota_alert': storage.config.get('quota_alert', {}),
         'share': storage.config.get('share', {}),
         'file_operations': storage.config.get('file_operations', {}),
+        'quark_signin': storage.config.get('quark_signin', {}),
         'auth': auth_config,
         'baidu': {
             'current_user': current_user  # 返回完整的用户信
@@ -1240,7 +1312,12 @@ def update_config():
     storage._save_config()
     
     # 处理调度器配置更
-    if scheduler and ('cron' in data or 'scheduler' in data):
+    if scheduler and (
+        'cron' in data
+        or 'scheduler' in data
+        or 'quota_alert' in data
+        or 'quark_signin' in data
+    ):
         try:
             was_running = scheduler.is_running
             if was_running:
@@ -1584,16 +1661,16 @@ def reorder_task():
 # 静态文件路
 @app.route('/static/<path:path>')
 def send_static(path):
-    return send_from_directory('static', path)
+    return send_from_directory(FRONTEND_DIR, path)
 
 # 前端资源路由 - 直接从static目录提供
 @app.route('/assets/<path:path>')
 def send_assets(path):
-    return send_from_directory('static/assets', path)
+    return send_from_directory(os.path.join(FRONTEND_DIR, 'assets'), path)
 
 @app.route('/favicon/<path:path>')
 def send_favicon(path):
-    return send_from_directory('static/favicon', path)
+    return send_from_directory(os.path.join(FRONTEND_DIR, 'favicon'), path)
 
 # SPA路由支持 - 捕获所有前端路
 @app.route('/<path:path>')
@@ -1605,7 +1682,7 @@ def spa_routes(path):
         return jsonify({'success': False, 'message': '接口不存'}), 404
     
     # 返回SPA的index.html，让Vue Router处理路由
-    return send_from_directory('static', 'index.html')
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 # 错误处理
 @app.errorhandler(404)

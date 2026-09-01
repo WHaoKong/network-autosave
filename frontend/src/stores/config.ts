@@ -53,6 +53,12 @@ interface QuotaAlertConfig {
   check_schedule?: string
 }
 
+interface QuarkSigninConfig {
+  enabled?: boolean
+  schedule?: string
+  notify?: boolean
+}
+
 interface AuthConfig {
   users?: string
   session_timeout?: number
@@ -66,6 +72,7 @@ interface RealConfig {
   scheduler?: SchedulerConfig
   file_operations?: FileOpsConfig
   quota_alert?: QuotaAlertConfig
+  quark_signin?: QuarkSigninConfig
   auth?: AuthConfig
   baidu?: {
     current_user?: any
@@ -121,6 +128,7 @@ export const useConfigStore = defineStore('config', () => {
           scheduler: serverConfig.scheduler || {},
           file_operations: serverConfig.file_operations || {},
           quota_alert: serverConfig.quota_alert || {},
+          quark_signin: serverConfig.quark_signin || {},
           auth: serverConfig.auth || {},
           baidu: serverConfig.baidu || {}
         }
@@ -225,6 +233,16 @@ export const useConfigStore = defineStore('config', () => {
       quota_alert: {
         ...config.value.quota_alert,
         ...quotaAlertConfig
+      }
+    }
+    return updateConfig(newConfig)
+  }
+
+  const updateQuarkSigninConfig = async (signinConfig: Partial<QuarkSigninConfig>) => {
+    const newConfig = {
+      quark_signin: {
+        ...config.value.quark_signin,
+        ...signinConfig
       }
     }
     return updateConfig(newConfig)
@@ -340,6 +358,11 @@ export const useConfigStore = defineStore('config', () => {
         threshold_percent: 98,
         check_schedule: '0 0 * * *'
       },
+      quark_signin: {
+        enabled: false,
+        schedule: '0 8 * * *',
+        notify: true
+      },
       auth: {
         users: '',
         session_timeout: 3600
@@ -424,6 +447,7 @@ export const useConfigStore = defineStore('config', () => {
     updateSchedulerConfig,
     updateFileOpsConfig,
     updateQuotaAlertConfig,
+    updateQuarkSigninConfig,
     updateAuthConfig,
     
     // 通知相关

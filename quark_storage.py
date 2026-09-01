@@ -2,13 +2,25 @@ import posixpath
 import random
 import re
 import time
+from datetime import datetime
+from threading import Lock
 from urllib.parse import parse_qs, urlparse
 
 import requests
 from loguru import logger
 
 
+class QuarkSigninError(RuntimeError):
+    def __init__(self, message, code=None, http_status=None, expired=False, transient=False):
+        super().__init__(message)
+        self.code = code
+        self.http_status = http_status
+        self.expired = expired
+        self.transient = transient
+
+
 class QuarkStorage:
+    SIGNIN_BASE_URL = "https://drive-m.quark.cn/1/clouddrive/capacity/growth"
     SERVICE_CONFIGS = {
         "quark": {
             "base_url": "https://drive-pc.quark.cn/1/clouddrive",
@@ -49,16 +61,32 @@ class QuarkStorage:
         self.provider = provider
         self.service = self.SERVICE_CONFIGS[provider]
         self.session = requests.Session()
+        self._signin_lock = Lock()
         self._ensure_config()
 
     def _ensure_config(self):
         provider_config = self.config.setdefault(self.provider, {})
         provider_config.setdefault("users", {})
         provider_config.setdefault("current_user", None)
+        if self.provider == "quark":
+            self.config.setdefault("quark_signin", {
+                "enabled": False,
+                "schedule": "0 8 * * *",
+                "notify": True,
+            })
+            for user in provider_config["users"].values():
+                signin = user.setdefault("signin", {})
+                signin.setdefault("enabled", False)
+                signin.setdefault("kps", "")
+                signin.setdefault("sign", "")
+                signin.setdefault("vcode", "")
 
     def _save_config(self):
         if self._save_config_callback:
-            self._save_config_callback()
+            try:
+                self._save_config_callback(update_scheduler=False)
+            except TypeError:
+                self._save_config_callback()
 
     def _current_cookie(self, account=None):
         current_user = account or self.config.get(self.provider, {}).get("current_user")
@@ -174,10 +202,234 @@ class QuarkStorage:
             logger.warning(f"{self.service['label']} quota fetch failed: {exc}")
             return None
 
+    @staticmethod
+    def _normalize_signin_value(value):
+        return str(value or "").strip().replace("%25", "%")
+
+    def _signin_credentials(self, account):
+        user = self.get_user(account)
+        if not user:
+            return None
+
+        signin = user.get("signin") or {}
+        credentials = {
+            key: self._normalize_signin_value(signin.get(key))
+            for key in ("kps", "sign", "vcode")
+        }
+
+        if not all(credentials.values()):
+            cookie = user.get("cookies", "")
+            for key in credentials:
+                match = re.search(
+                    rf"(?<!\w){key}=([a-zA-Z0-9%+/=]+)[;&]?",
+                    cookie,
+                )
+                if match:
+                    credentials[key] = self._normalize_signin_value(match.group(1))
+
+        return credentials if all(credentials.values()) else None
+
+    def has_signin_credentials(self, account):
+        return self._signin_credentials(account) is not None
+
+    def configure_signin(self, account, enabled=False, **credentials):
+        user = self.get_user(account)
+        if not user:
+            raise ValueError(f"夸克账号 {account} 不存在")
+
+        signin = user.setdefault("signin", {})
+        signin["enabled"] = bool(enabled)
+        for key in ("kps", "sign", "vcode"):
+            value = self._normalize_signin_value(credentials.get(key))
+            if value:
+                signin[key] = value
+            else:
+                signin.setdefault(key, "")
+
+        self._save_config()
+        return {
+            "username": account,
+            "signin_enabled": signin["enabled"],
+            "signin_configured": self.has_signin_credentials(account),
+        }
+
+    def run_enabled_signins(self):
+        results = []
+        for account, user in self.config.get("quark", {}).get("users", {}).items():
+            if (user.get("signin") or {}).get("enabled", False):
+                results.append(self.run_signin(account))
+        return results
+
+    def _signin_request(self, method, endpoint, credentials, payload=None):
+        params = {
+            "pr": "ucpro",
+            "fr": "android",
+            **credentials,
+        }
+        max_attempts = max(1, min(int(self.config.get("retry", {}).get("max_attempts", 3)), 3))
+        last_error = None
+
+        for attempt in range(max_attempts):
+            try:
+                response = self.session.request(
+                    method,
+                    f"{self.SIGNIN_BASE_URL}/{endpoint}",
+                    params=params,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=30,
+                )
+                try:
+                    body = response.json()
+                except ValueError:
+                    body = {}
+
+                code = body.get("code")
+                message = body.get("message") or body.get("error") or "夸克签到请求失败"
+                expired = response.status_code == 401 or str(code) == "50051"
+                transient = response.status_code == 429 or response.status_code >= 500
+
+                if expired:
+                    raise QuarkSigninError(
+                        "签到凭据已过期，请重新抓取 kps、sign、vcode",
+                        code=code,
+                        http_status=response.status_code,
+                        expired=True,
+                    )
+                if response.status_code >= 400:
+                    raise QuarkSigninError(
+                        message,
+                        code=code,
+                        http_status=response.status_code,
+                        transient=transient,
+                    )
+
+                status = body.get("status")
+                if code not in (None, 0) or status not in (None, 0, 200):
+                    raise QuarkSigninError(message, code=code)
+                if not body.get("data"):
+                    raise QuarkSigninError(message, code=code)
+                return body["data"]
+            except QuarkSigninError as exc:
+                last_error = exc
+                if not exc.transient or attempt + 1 >= max_attempts:
+                    raise
+            except requests.RequestException as exc:
+                last_error = QuarkSigninError(
+                    "夸克签到网络请求失败",
+                    transient=True,
+                )
+                if attempt + 1 >= max_attempts:
+                    raise last_error from exc
+
+            time.sleep(min(2 ** attempt, 4) + random.uniform(0, 0.5))
+
+        raise last_error or QuarkSigninError("夸克签到请求失败")
+
+    def get_growth_info(self, account):
+        credentials = self._signin_credentials(account)
+        if not credentials:
+            raise QuarkSigninError("缺少签到凭据 kps、sign、vcode")
+        return self._signin_request("GET", "info", credentials)
+
+    def run_signin(self, account):
+        if self.provider != "quark":
+            return {
+                "account": account,
+                "success": False,
+                "status": "unsupported",
+                "message": "签到功能仅支持夸克网盘",
+            }
+
+        user = self.get_user(account)
+        if not user:
+            return {
+                "account": account,
+                "success": False,
+                "status": "not_found",
+                "message": "夸克账号不存在",
+            }
+
+        result = {
+            "account": account,
+            "success": False,
+            "already_signed": False,
+            "reward_bytes": 0,
+            "status": "failed",
+            "message": "",
+        }
+
+        with self._signin_lock:
+            try:
+                credentials = self._signin_credentials(account)
+                if not credentials:
+                    raise QuarkSigninError("缺少签到凭据 kps、sign、vcode")
+
+                info = self._signin_request("GET", "info", credentials)
+                cap_sign = info.get("cap_sign") or {}
+                result.update({
+                    "total_capacity": int(info.get("total_capacity") or 0),
+                    "sign_reward_total": int((info.get("cap_composition") or {}).get("sign_reward") or 0),
+                    "sign_progress": int(cap_sign.get("sign_progress") or 0),
+                    "sign_target": int(cap_sign.get("sign_target") or 0),
+                })
+
+                if cap_sign.get("sign_daily"):
+                    reward = int(cap_sign.get("sign_daily_reward") or 0)
+                    result.update({
+                        "success": True,
+                        "already_signed": True,
+                        "reward_bytes": reward,
+                        "status": "already_signed",
+                        "message": "今日已签到",
+                    })
+                else:
+                    signed = self._signin_request(
+                        "POST",
+                        "sign",
+                        credentials,
+                        payload={"sign_cyclic": True},
+                    )
+                    reward = int(signed.get("sign_daily_reward") or 0)
+                    result.update({
+                        "success": True,
+                        "reward_bytes": reward,
+                        "status": "signed",
+                        "message": "签到成功",
+                        "sign_progress": result["sign_progress"] + 1,
+                    })
+            except QuarkSigninError as exc:
+                result.update({
+                    "status": "credentials_expired" if exc.expired else "failed",
+                    "message": str(exc),
+                    "code": exc.code,
+                    "http_status": exc.http_status,
+                })
+                logger.warning(f"夸克账号 {account} 签到失败: {exc}")
+            except Exception as exc:
+                result["message"] = "夸克签到发生未知错误"
+                logger.exception(f"夸克账号 {account} 签到异常: {exc}")
+
+            previous_meta = user.get("signin_meta") or {}
+            user["signin_meta"] = {
+                "last_run_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "last_sign_date": (
+                    datetime.now().astimezone().date().isoformat()
+                    if result["success"]
+                    else previous_meta.get("last_sign_date")
+                ),
+                "last_reward_bytes": result.get("reward_bytes", 0),
+                "last_status": result["status"],
+                "last_message": result["message"],
+            }
+            self._save_config()
+
+        return result
+
     def add_user_from_cookies(self, cookies, username=None):
         try:
             if not cookies or "=" not in cookies:
-                raise ValueError("??? Cookies ??")
+                raise ValueError("夸克 Cookies 格式无效")
 
             if not self.validate_cookie(cookies):
                 raise ValueError("\u5938\u514b Cookies \u65e0\u6548\u6216\u5df2\u8fc7\u671f")

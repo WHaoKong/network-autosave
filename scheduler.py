@@ -64,6 +64,10 @@ class TaskScheduler:
         try:
             # 清除现有的任务调
             self.scheduler.remove_all_jobs()
+
+            # 系统级作业独立于转存任务，任务列表刷新后必须重新挂载
+            self._add_quota_check_job()
+            self._add_quark_signin_job()
             
             # 获取任务列表
             tasks = self.storage.list_tasks()
@@ -156,10 +160,9 @@ class TaskScheduler:
             self.is_running = False  # 初始化时设置为未运行状
             
             # 获取任务列表
-            tasks = self._get_current_tasks()
+            tasks = self._get_current_tasks() or []
             if not tasks:
                 logger.info("没有配置任何任务")
-                return
             
             # 获取默认调度并处理多个cron表达
             default_schedule = self.storage.config.get('cron', {}).get('default_schedule', '*/5 * * * *')
@@ -213,6 +216,9 @@ class TaskScheduler:
             
             # 添加网盘容量检查任务
             self._add_quota_check_job()
+
+            # 添加夸克签到任务
+            self._add_quark_signin_job()
             
             # 添加默认定时任务
             if default_scheduled_tasks:
@@ -872,6 +878,62 @@ class TaskScheduler:
             logger.info(f"已添加网盘容量检查任务: {check_schedule}")
         except Exception as e:
             logger.error(f"添加网盘容量检查任务失: {str(e)}")
+
+    def _add_quark_signin_job(self):
+        """添加夸克网盘每日签到任务。"""
+        try:
+            signin_config = self.storage.config.get('quark_signin', {})
+            if not signin_config.get('enabled', False):
+                logger.info("夸克自动签到功能未启用")
+                return
+
+            schedule = signin_config.get('schedule', '0 8 * * *')
+            self.scheduler.add_job(
+                self._run_quark_signins,
+                CronTrigger.from_crontab(
+                    convert_cron_weekday(schedule),
+                    timezone=pytz.timezone('Asia/Shanghai')
+                ),
+                id='quark_signin',
+                replace_existing=True,
+                coalesce=True,
+                max_instances=1
+            )
+            logger.info(f"已添加夸克签到任务: {schedule}")
+        except Exception as exc:
+            logger.error(f"添加夸克签到任务失败: {exc}")
+
+    def _run_quark_signins(self):
+        """串行执行所有已启用账号的夸克签到。"""
+        try:
+            results = self.storage.quark_storage.run_enabled_signins()
+            if not results:
+                logger.info("没有启用自动签到的夸克账号")
+                return []
+
+            lines = []
+            for result in results:
+                account = result.get('account', 'unknown')
+                reward_mb = round(result.get('reward_bytes', 0) / (1024 ** 2), 2)
+                if result.get('success'):
+                    detail = result.get('message', '签到成功')
+                    if reward_mb:
+                        detail += f"，奖励 {reward_mb} MB"
+                    logger.info(f"夸克账号 {account}: {detail}")
+                else:
+                    detail = result.get('message', '签到失败')
+                    logger.warning(f"夸克账号 {account}: {detail}")
+                lines.append(f"- {account}: {detail}")
+
+            signin_config = self.storage.config.get('quark_signin', {})
+            notify_enabled = self.storage.config.get('notify', {}).get('enabled', False)
+            if signin_config.get('notify', True) and notify_enabled:
+                notify_send("夸克每日签到", "\n".join(lines))
+
+            return results
+        except Exception as exc:
+            logger.exception(f"执行夸克自动签到失败: {exc}")
+            return []
 
     def _check_disk_quota(self):
         """检查网盘容量并发送通知"""

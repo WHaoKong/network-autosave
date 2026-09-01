@@ -69,6 +69,10 @@ export const useAuthStore = defineStore('auth', () => {
         isAuthenticated.value = true
         if (response.username || response.data?.username) {
           username.value = response.username || response.data.username
+          storage.setItem('auth', {
+            isAuthenticated: true,
+            username: username.value
+          })
         }
         return true
       } else {
@@ -116,7 +120,6 @@ export const useAuthStore = defineStore('auth', () => {
       
       if (isValid) {
         isAuthenticated.value = true
-        username.value = storedAuth.username
       }
     }
   }
