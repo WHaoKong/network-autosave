@@ -10,7 +10,7 @@ from loguru import logger
 import sys
 from notify import send as notify_send
 from notify import push_config as notify_push_config
-from utils import generate_transfer_notification
+from utils import generate_transfer_notification, generate_transfer_notification_title
 import time
 from threading import Lock, Timer
 import pytz
@@ -709,8 +709,9 @@ class TaskScheduler:
             try:
                 notification_content = generate_transfer_notification(self._notification_buffer)
                 if notification_content.strip():  # 只在有内容时发送通知
-                    logger.info(f"准备发送汇总通知:\n{notification_content}")
-                    notify_send("百度网盘自动追更", notification_content)
+                    notification_title = generate_transfer_notification_title(self._notification_buffer)
+                    logger.info(f"准备发送汇总通知:\n{notification_title}\n{notification_content}")
+                    notify_send(notification_title, notification_content)
                     logger.info(f"通知发送成功， {len(self._notification_buffer['success'])} 个成功任务，{len(self._notification_buffer['failed'])} 个失败任")
                 else:
                     logger.warning("生成的通知内容为空，跳过发")
@@ -928,7 +929,16 @@ class TaskScheduler:
             signin_config = self.storage.config.get('quark_signin', {})
             notify_enabled = self.storage.config.get('notify', {}).get('enabled', False)
             if signin_config.get('notify', True) and notify_enabled:
-                notify_send("夸克每日签到", "\n".join(lines))
+                title_parts = []
+                for result in results:
+                    account = result.get('account', 'unknown')
+                    if result.get('already_signed'):
+                        title_parts.append(f"{account} 已签到")
+                    elif result.get('success'):
+                        title_parts.append(f"{account} 成功")
+                    else:
+                        title_parts.append(f"{account} 失败")
+                notify_send("；".join(title_parts) or "夸克每日签到", "\n".join(lines))
 
             return results
         except Exception as exc:

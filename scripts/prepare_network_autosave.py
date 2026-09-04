@@ -9,8 +9,9 @@ VERSION_TS.write_text(
 export const VERSION_CONFIG = {
   APP_VERSION: __APP_VERSION__,
   BUILD_TIME: __BUILD_TIME__,
-  RELEASE_NOTES: 'network-autosave 1.0.0 \u521d\u59cb\u53d1\u5e03',
+  RELEASE_NOTES: 'network-autosave 1.1.0\uff1a\u5938\u514b\u6bcf\u65e5\u7b7e\u5230\u3001\u901a\u77e5\u6807\u9898\u663e\u793a\u4efb\u52a1\u7ed3\u679c',
   UPDATE_NOTES: {
+    'v1.1.0': '\u65b0\u589e\u5938\u514b\u6bcf\u65e5\u7b7e\u5230\u9886\u7a7a\u95f4\uff1b\u901a\u77e5\u5185\u5bb9\u6539\u4e3a\u4efb\u52a1\u540d\u79f0+\u6210\u529f/\u5931\u8d25\uff1b\u4fee\u590d\u53f3\u4e0a\u89d2\u663e\u793a\u767b\u5f55\u7528\u6237\u540d\u4e0e\u4e2d\u6587\u4e71\u7801',
     'v1.0.0': '\u591a\u7f51\u76d8\u81ea\u52a8\u8f6c\u5b58\u5de5\u5177 network-autosave \u521d\u59cb\u7248\u672c',
   }
 } as const

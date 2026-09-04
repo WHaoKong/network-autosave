@@ -10,7 +10,7 @@ import atexit
 import re
 from functools import wraps
 import signal
-from utils import generate_transfer_notification
+from utils import generate_transfer_notification, generate_transfer_notification_title
 from notify import send as notify_send
 from datetime import datetime
 from flask_cors import CORS
@@ -783,7 +783,10 @@ def execute_task():
                     
                     try:
                         # 发送转存成功通知
-                        notify_send('百度自动追更', generate_transfer_notification(task_results))
+                        notify_send(
+                            generate_transfer_notification_title(task_results),
+                            generate_transfer_notification(task_results)
+                        )
                     except Exception as e:
                         logger.error(f"发送转存成功通知失败: {str(e)}")
                     
@@ -1528,7 +1531,7 @@ def execute_all_tasks():
     if results['success'] or results['failed']:
         try:
             notification_content = generate_transfer_notification(results)
-            notify_send("百度网盘自动追更", notification_content)
+            notify_send(generate_transfer_notification_title(results), notification_content)
         except Exception as e:
             logger.error(f"发送通知失败: {str(e)}")
     

@@ -1,6 +1,30 @@
 import os
 from loguru import logger
 
+
+def _task_display_name(task):
+    return (task.get('name') or task.get('url') or '未命名任务').strip()
+
+
+def generate_transfer_notification_title(tasks_results, default_title="网盘自动转存"):
+    """生成通知标题：任务名称 + 成功/失败，便于在卡片上一眼看出结果。"""
+    try:
+        parts = []
+        transferred_files = tasks_results.get('transferred_files') or {}
+
+        for task in tasks_results.get('success') or []:
+            if transferred_files.get(task.get('url')):
+                parts.append(f"{_task_display_name(task)} 成功")
+
+        for task in tasks_results.get('failed') or []:
+            parts.append(f"{_task_display_name(task)} 失败")
+
+        return "；".join(parts) if parts else default_title
+    except Exception as e:
+        logger.error(f"生成通知标题失败: {str(e)}")
+        return default_title
+
+
 def generate_transfer_notification(tasks_results):
     """生成转存通知内容"""
     try:

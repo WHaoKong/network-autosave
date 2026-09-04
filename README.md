@@ -365,7 +365,7 @@ npm run build:prod
 
 更多启动方式见 [终端启动命令.md](./终端启动命令.md) 与 [前端开发启动指南.md](./前端开发启动指南.md)。
 
-版本更新记录请见 [Releases](https://github.com/WHaoKong/network-autosave/releases)。
+版本更新记录请见 [CHANGELOG.md](./CHANGELOG.md) 与 [Releases](https://github.com/WHaoKong/network-autosave/releases)。
 
 ## 许可证
 
